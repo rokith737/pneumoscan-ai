@@ -1,0 +1,81 @@
+version: "3.9"
+
+# ─── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  app_net:
+    driver: bridge
+
+# ─── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  model_repo:
+
+# ─── Services ──────────────────────────────────────────────────────────────────
+services:
+
+  # ── NVIDIA Triton Inference Server ──────────────────────────────────────────
+  triton:
+    image: nvcr.io/nvidia/tritonserver:23.10-py3
+    container_name: triton
+    restart: unless-stopped
+    runtime: nvidia                        # requires nvidia-container-toolkit
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    ports:
+      - "8001:8000"    # HTTP inference
+      - "8002:8001"    # gRPC inference
+      - "8003:8002"    # Metrics
+    volumes:
+      - ./model_repository:/models
+    command: >
+      tritonserver
+        --model-repository=/models
+        --log-verbose=1
+        --strict-model-config=false
+    networks:
+      - app_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TRITON_URL=triton:8000
+      - MODEL_NAME=chest_xray
+      - MODEL_VERSION=1
+    ports:
+      - "8080:8080"
+    depends_on:
+      triton:
+        condition: service_healthy
+    networks:
+      - app_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── React Frontend ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - app_net

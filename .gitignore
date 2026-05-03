@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pth
+*.onnx
+venv/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.env.local
+
+# Data
+data/
+data_raw/
+
+# Secrets
+.env
+
+# VS Code
+.vscode/
+
+# Docker
+*.rar
+*.tar
