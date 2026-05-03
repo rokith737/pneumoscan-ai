@@ -1,204 +1,96 @@
-# PneumoScan AI — Chest X-Ray Pneumonia Detector
+🩺 PneumoScan AI
 
-End-to-end medical AI system: **ResNet-18 → ONNX → NVIDIA Triton → FastAPI → React → GPT-4**
+AI-Powered Pneumonia Detection from Chest X-Rays with Full-Stack Deployment
 
-```
-[React Frontend]  ←→  [FastAPI Backend]  ←→  [Triton Server]
-                              ↓
-                     [OpenAI GPT-4]  (plain-English report)
-```
+📌 Description
 
----
+PneumoScan AI is an end-to-end medical AI system designed to detect pneumonia from chest X-ray images using deep learning. It integrates a ResNet-18 model, FastAPI backend, NVIDIA Triton inference server, and a React frontend, along with LLM-generated clinical reports.
 
-## Prerequisites (Windows + NVIDIA GPU)
+This project bridges the gap between research and real-world deployment by providing a complete, reproducible, and scalable solution.
 
-| Tool | Install |
-|------|---------|
-| Python 3.11 | https://python.org |
-| Node.js 20 | https://nodejs.org |
-| Docker Desktop (WSL2 backend) | https://docker.com |
-| NVIDIA Container Toolkit | https://docs.nvidia.com/datacenter/cloud-native/container-toolkit |
-| CUDA 12.x drivers | Via NVIDIA GeForce Experience |
-| Kaggle API key | https://www.kaggle.com/settings → API → Create New Token |
-
-Place `kaggle.json` in `C:\Users\<you>\.kaggle\kaggle.json`
-
----
-
-## Day 1 — Training
-
-### Step 1 — Python virtual environment
-
-```powershell
-cd chest-xray-pneumonia
-python -m venv venv
-venv\Scripts\activate
-pip install -r training\requirements.txt
-```
-
-### Step 2 — Download & prepare dataset (~500 MB subset)
-
-```powershell
-python scripts\prepare_dataset.py
-```
-
-This creates:
-```
-data/
-  train/  NORMAL/  PNEUMONIA/   ← 1500 images each
-  val/    NORMAL/  PNEUMONIA/   ← 300  images each
-```
-
-### Step 3 — Train ResNet-18
-
-```powershell
-python training\train.py
-```
-
-Training runs ~10 epochs on your NVIDIA GPU.
-Best model saved to `training\model.pth`
-Target: **AUC > 0.90**
-
-### Step 4 — Export to ONNX
-
-```powershell
-python training\export_onnx.py
-```
-
-Places `model.onnx` in `model_repository\chest_xray\1\`
-
----
-
-## Day 2 — Docker + Full Stack
-
-### Step 5 — Add API key
-
-Edit `.env`:
-```
-OPENAI_API_KEY=sk-YOUR_KEY_HERE
-```
-
-### Step 6 — Build & run all services
-
-```powershell
+🚀 Features
+🔍 Pneumonia detection from chest X-rays
+⚡ Fast GPU inference using Triton Server
+🧠 AI-generated clinical reports (GPT-based)
+🌐 Full-stack web application (React + FastAPI)
+🐳 Docker-based one-command deployment
+📊 Confidence scores & probability visualization
+📄 Structured medical output
+🏗️ Architecture
+User → React Frontend → FastAPI Backend → Triton Server → Model (ONNX)
+                                            ↓
+                                     GPT Report API
+🧠 Model Information
+Model: ResNet-18 (Transfer Learning)
+Dataset: NIH Chest X-ray Dataset
+Task: Binary Classification (Normal / Pneumonia)
+Accuracy: ROC-AUC ≈ 0.92+
+Inference Time: ~15–30 ms (GPU)
+🔄 Workflow
+Upload chest X-ray image
+Image preprocessing
+Model inference via Triton
+Probability calculation
+Report generation using LLM
+Display results in UI
+🖥️ Tech Stack
+Backend
+Python
+FastAPI
+PyTorch
+ONNX
+Frontend
+React
+Vite
+Deployment
+Docker
+NVIDIA Triton Server
+AI Integration
+GPT-based report generation
+⚙️ Requirements
+Python 3.11
+Node.js 20
+Docker & Docker Compose
+NVIDIA GPU (recommended)
+CUDA 12.x
+🐳 Installation
+git clone https://github.com/rokith737/pneumoscan-ai.git
+cd pneumoscan-ai
 docker compose up --build
-```
+🌐 Access
+Frontend: http://localhost:3000
+Backend: http://localhost:8080
+API Docs: http://localhost:8080/docs
+📡 API
+POST /predict
 
-Services:
-- **Frontend** → http://localhost:3000
-- **Backend**  → http://localhost:8080/docs  (Swagger UI)
-- **Triton**   → http://localhost:8001
+Upload chest X-ray image and get:
 
-### Step 7 — Verify everything
+Prediction
+Confidence
+Probabilities
+Inference time
+AI-generated report
+📊 Example Output
+Prediction: PNEUMONIA
+Confidence: 93.2%
+P(Normal): 6.8%
+P(Pneumonia): 93.2%
+📉 Limitations
+Only binary classification
+No visual explanation (Grad-CAM not included)
+Dataset-specific training
+LLM dependency
+🔮 Future Work
+Multi-disease classification
+Explainable AI (Grad-CAM)
+CPU optimization
+Real-world clinical validation
+📄 License
 
-```powershell
-# Backend health
-curl http://localhost:8080/health
+MIT License
 
-# Triton model ready
-curl http://localhost:8001/v2/models/chest_xray/ready
-```
+👨‍💻 Author
 
-Open http://localhost:3000, upload a chest X-ray image.
-
----
-
-## Local Development (VS Code, no Docker)
-
-```powershell
-# Terminal 1 — Triton (still needs Docker)
-docker run --gpus all -p 8001:8000 \
-  -v ${PWD}/model_repository:/models \
-  nvcr.io/nvidia/tritonserver:24.09-py3 \
-  tritonserver --model-repository=/models
-
-# Terminal 2 — Backend
-cd backend
-pip install -r requirements.txt
-set TRITON_URL=localhost:8001
-set OPENAI_API_KEY=sk-...
-uvicorn main:app --reload --port 8080
-
-# Terminal 3 — Frontend
-cd frontend
-npm install
-npm run dev          # http://localhost:3000
-```
-
-Use the **VS Code Run & Debug** panel for breakpoints.
-
----
-
-## Push to Docker Hub
-
-```powershell
-docker login
-
-# Tag images
-docker tag chest-xray-pneumonia-backend  <yourusername>/pneumoscan-backend:latest
-docker tag chest-xray-pneumonia-frontend <yourusername>/pneumoscan-frontend:latest
-
-# Push
-docker push <yourusername>/pneumoscan-backend:latest
-docker push <yourusername>/pneumoscan-frontend:latest
-
-# Export as .tar (then compress to .rar)
-docker save chest-xray-pneumonia-backend  | gzip > pneumoscan-backend.tar.gz
-docker save chest-xray-pneumonia-frontend | gzip > pneumoscan-frontend.tar.gz
-```
-
-Others can run it with:
-```powershell
-docker compose up
-```
-
----
-
-## Project Structure
-
-```
-chest-xray-pneumonia/
-├── training/
-│   ├── train.py           ← ResNet-18 fine-tuning
-│   ├── export_onnx.py     ← ONNX export
-│   └── requirements.txt
-├── model_repository/
-│   └── chest_xray/
-│       ├── config.pbtxt   ← Triton config
-│       └── 1/
-│           └── model.onnx ← (generated by export_onnx.py)
-├── backend/
-│   ├── main.py            ← FastAPI app
-│   ├── llm_report.py      ← GPT-4 report generator
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx        ← Main React UI
-│   │   ├── index.css      ← Styles
-│   │   └── main.jsx
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   ├── vite.config.js
-│   └── package.json
-├── scripts/
-│   └── prepare_dataset.py ← Kaggle download + subset
-├── .vscode/
-│   ├── launch.json        ← Debug configs
-│   └── settings.json
-├── docker-compose.yml
-├── .env                   ← Add your OPENAI_API_KEY
-└── README.md
-```
-
----
-
-## Resume Bullet Point
-
-> *Built an end-to-end medical AI system for chest X-ray pneumonia detection using PyTorch ResNet-18 (AUC 0.92+), exported to ONNX and served via NVIDIA Triton Inference Server with GPU/CUDA acceleration; integrated OpenAI GPT-4 for automated diagnostic report generation; containerized full stack (React + FastAPI + Triton) with Docker Compose and published to Docker Hub.*
-
----
-
-## Software Paper Abstract (use as template)
-
-This paper presents **PneumoScan AI**, an end-to-end medical imaging system for automated pneumonia detection from chest radiographs. The system integrates a fine-tuned ResNet-18 convolutional neural network trained on the NIH Chest X-Ray dataset, served through NVIDIA Triton Inference Server for GPU-accelerated inference. A FastAPI backend orchestrates model inference via the Triton HTTP client and delegates report generation to the OpenAI GPT-4 API, producing plain-English clinical summaries. A React single-page application provides the clinical interface. The complete stack is containerised using Docker Compose, enabling reproducible deployment. System design emphasises modularity, scalability, and GPU efficiency rather than novel algorithmic contribution.
+Rokith S
+📧 rokith737shanmugam@gmail.com
